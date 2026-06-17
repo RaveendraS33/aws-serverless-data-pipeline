@@ -1,0 +1,2 @@
+awswrangler==3.16.1
+streamlit==1.41.1

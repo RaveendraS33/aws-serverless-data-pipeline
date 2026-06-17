@@ -1,0 +1,5 @@
+aws_region   = "us-east-1"
+budget_email = "your-email@example.com"
+
+# Optional. S3 bucket names are globally unique.
+# bucket_name = "aws-serverless-data-pipeline-yourname"

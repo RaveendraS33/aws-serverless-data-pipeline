@@ -1,0 +1,6 @@
+awswrangler==3.16.1
+boto3==1.35.99
+moto[s3]==4.2.14
+pytest==9.0.2
+ruff==0.8.4
+streamlit==1.41.1

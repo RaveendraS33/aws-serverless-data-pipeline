@@ -8,6 +8,8 @@ __pycache__/
 *.tfvars.json
 !*.tfvars.example
 response.json
+*_response.json
+response_*.json
 sample_usgs_geojson.json
 
 .terraform/

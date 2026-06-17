@@ -32,6 +32,12 @@ flowchart LR
     A --> D["Local Streamlit dashboard"]
 ```
 
+## Dashboard
+
+The local Streamlit dashboard reads live data straight from Athena (`streamlit run dashboard/app.py`) — a world map of recent earthquakes, daily event counts, and an M5.0+ table:
+
+![Streamlit dashboard showing a world map of recent USGS earthquakes, key metrics, daily event counts, and an M5.0+ events table](docs/screenshots/streamlit-dashboard.png)
+
 ## Data Source
 
 USGS earthquake event API, no API key required:

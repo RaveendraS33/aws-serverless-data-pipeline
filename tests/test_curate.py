@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 import pandas as pd
 
 from src.curate.handler import (
+    _dedup_latest,
     deduplicate,
     feature_to_record,
     records_from_geojson,
@@ -93,3 +94,37 @@ def test_deduplicate_drops_rows_without_id_or_dt():
 
 def test_deduplicate_empty_input_returns_empty_frame():
     assert deduplicate([]).empty
+
+
+def test_dedup_latest_handles_unordered_categorical():
+    # awswrangler returns string columns as unordered Categorical when reading
+    # parquet; sort/dedup must still work (regression for the curate merge failure).
+    df = pd.DataFrame(
+        {
+            "event_id": pd.Categorical(["b", "a", "a"]),
+            "updated_time": [1, 2, 3],
+            "mag": [1.0, 2.0, 9.0],
+        }
+    )
+
+    out = _dedup_latest(df)
+
+    assert len(out) == 2
+    assert out.loc[out["event_id"] == "a", "mag"].iloc[0] == 9.0
+
+
+def test_dedup_latest_handles_extension_string_dtype():
+    # pandas/pyarrow string extension dtype (as awswrangler returns when reading
+    # parquet) -- the old category-only handling missed these; astype(str) covers it.
+    df = pd.DataFrame(
+        {
+            "event_id": pd.array(["b", "a", "a"], dtype="string"),
+            "updated_time": [1, 2, 3],
+            "mag": [1.0, 2.0, 9.0],
+        }
+    )
+
+    out = _dedup_latest(df)
+
+    assert len(out) == 2
+    assert out.loc[out["event_id"] == "a", "mag"].iloc[0] == 9.0

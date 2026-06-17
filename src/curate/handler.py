@@ -55,13 +55,24 @@ def records_from_geojson(payload: dict) -> list[dict]:
     return [feature_to_record(feature) for feature in payload.get("features", [])]
 
 
+def _dedup_latest(df: pd.DataFrame) -> pd.DataFrame:
+    # The awswrangler Lambda layer can return columns as pandas extension dtypes
+    # or even an unordered Categorical. pandas' multi-key sort builds an ordered
+    # Categorical from EACH sort key and raises "'values' is not ordered" on an
+    # unordered one. Coerce both sort keys to plain numpy dtypes (object string +
+    # datetime64) first, so lexsort never sees a pre-existing unordered Categorical.
+    df = df.copy()
+    df["event_id"] = df["event_id"].to_numpy(dtype=object)
+    df["updated_time"] = pd.to_datetime(df["updated_time"], errors="coerce")
+    return df.sort_values(["event_id", "updated_time"]).drop_duplicates("event_id", keep="last")
+
+
 def deduplicate(records: list[dict]) -> pd.DataFrame:
     df = pd.DataFrame.from_records(records)
     if df.empty:
         return df
     df = df.dropna(subset=["event_id", "dt"])
-    df = df.sort_values(["event_id", "updated_time"]).drop_duplicates("event_id", keep="last")
-    return df
+    return _dedup_latest(df)
 
 
 def ordered_columns() -> list[str]:
@@ -103,7 +114,7 @@ def merge_existing_partitions(wr, df: pd.DataFrame, bucket: str) -> pd.DataFrame
         df = pd.concat([*existing_frames, df], ignore_index=True)
 
     df = df[ordered_columns()]
-    return df.sort_values(["event_id", "updated_time"]).drop_duplicates("event_id", keep="last")
+    return _dedup_latest(df)
 
 
 def write_curated(df: pd.DataFrame, bucket: str):

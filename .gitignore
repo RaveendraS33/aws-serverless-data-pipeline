@@ -16,6 +16,7 @@ sample_usgs_geojson.json
 .terraform.lock.hcl
 *.tfstate
 *.tfstate.*
+*.tfplan
 infra/*.zip
 crash.log
 override.tf

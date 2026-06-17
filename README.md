@@ -16,6 +16,7 @@ This is the cloud/serverless complement to a local Kafka -> PySpark -> Iceberg l
 - **Least-privilege IAM**: each Lambda runs under its own scoped role; the deployer's broad rights are separate from the runtime roles.
 - **Partition projection**: Athena resolves partitions from the S3 path template — no crawler, no `MSCK REPAIR`, no catalog drift. Terraform owns the Glue table; the curate Lambda only writes Parquet files.
 - **Idempotent curation**: dedup by `event_id`, keeping the latest revision (`updated_time`).
+- **Reliability & observability**: retries + an SQS dead-letter queue on both event paths, CloudWatch error/throttle/DLQ alarms via SNS, and structured JSON logs with per-run correlation ids.
 - **CI**: ruff + pytest + `terraform fmt`/`validate` on every push.
 
 ## Architecture
@@ -63,6 +64,61 @@ event_id, event_time, updated_time, mag, magtype, place,
 longitude, latitude, depth_km, type, tsunami, sig, alert,
 status, url, net, dt
 ```
+
+## Example: One Record End to End
+
+A single USGS feature flows through the pipeline as follows (values illustrative).
+
+**1. Raw** — the ingest Lambda writes the USGS GeoJSON to S3 unchanged, e.g. `raw/source=usgs/dt=2026-06-17/hour=09/quakes_1781699100000.geojson`:
+
+```json
+{
+  "id": "us6000abcd",
+  "properties": {
+    "mag": 4.6, "place": "120 km SSW of Example", "time": 1781699100000,
+    "updated": 1781699400000, "magType": "mb", "type": "earthquake",
+    "tsunami": 0, "sig": 326, "alert": null, "status": "reviewed",
+    "url": "https://earthquake.usgs.gov/...", "net": "us"
+  },
+  "geometry": { "type": "Point", "coordinates": [-178.2, -20.5, 567.8] }
+}
+```
+
+**2. Curated** — the curate Lambda dedups by `event_id` (keeping the latest `updated`) and writes one Parquet row, partitioned by `dt`:
+
+| event_id | event_time | mag | place | longitude | latitude | depth_km | dt |
+|---|---|---|---|---|---|---|---|
+| us6000abcd | 2026-06-17T09:05:00Z | 4.6 | 120 km SSW of Example | -178.2 | -20.5 | 567.8 | 2026-06-17 |
+
+**3. Query** — Athena reads it through the partition-projection table:
+
+```sql
+SELECT dt, count(*) AS events, round(max(mag), 2) AS max_mag
+FROM earthquakes
+WHERE dt >= date_format(current_date - interval '7' day, '%Y-%m-%d')
+GROUP BY dt ORDER BY dt;
+```
+
+```text
+dt          events  max_mag
+2026-06-17  16      4.6
+```
+
+**No-op and failure behavior**
+
+- **No new events**: ingest still writes a (possibly empty) GeoJSON; curate parses zero features, writes nothing, and the run is a no-op. Re-running is idempotent (dedup on `event_id`).
+- **USGS API unavailable**: ingest logs a structured `ingest_error`, raises, and the invocation is retried; on repeated failure the event is captured in the dead-letter queue (see below) rather than lost.
+
+## Reliability & Monitoring
+
+- **Retries + dead-letter queue**: both event paths have an explicit retry policy and a dead-letter SQS queue (`<project>-dlq`, 14-day retention) — the EventBridge Scheduler target (ingest), the S3-object-created rule target (curate), and the curate Lambda's on-failure async destination. Repeated failures are captured, not silently dropped.
+- **CloudWatch alarms** → SNS topic `<project>-alerts` (subscribed to `budget_email`):
+  - Lambda `Errors > 0` and `Throttles > 0` for both ingest and curate.
+  - Dead-letter queue depth `> 0`.
+- **Structured logging**: both Lambdas emit single-line JSON logs keyed by the Lambda request id (correlation id), including a run-summary line (e.g. `curate_run` with `raw_features`, `deduped`, `rows_written`, `partitions`) for easy CloudWatch Logs Insights queries.
+- **Cost**: SQS and SNS sit in the always-free tier and the 5 alarms fit inside the 10-alarm free allowance — still effectively `$0`.
+
+> The SNS email subscription needs a one-time confirmation click sent to `budget_email` after the first `terraform apply`.
 
 ## Cost Guardrails
 

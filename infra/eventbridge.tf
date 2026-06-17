@@ -19,6 +19,12 @@ data "aws_iam_policy_document" "scheduler_invoke_ingest" {
     actions   = ["lambda:InvokeFunction"]
     resources = [aws_lambda_function.ingest.arn]
   }
+
+  # Allow the scheduler to deliver failed invocations to the DLQ.
+  statement {
+    actions   = ["sqs:SendMessage"]
+    resources = [aws_sqs_queue.dlq.arn]
+  }
 }
 
 resource "aws_iam_policy" "scheduler_invoke_ingest" {
@@ -43,6 +49,15 @@ resource "aws_scheduler_schedule" "hourly_ingest" {
   target {
     arn      = aws_lambda_function.ingest.arn
     role_arn = aws_iam_role.scheduler.arn
+
+    dead_letter_config {
+      arn = aws_sqs_queue.dlq.arn
+    }
+
+    retry_policy {
+      maximum_event_age_in_seconds = 3600
+      maximum_retry_attempts       = 3
+    }
   }
 }
 
@@ -72,6 +87,15 @@ resource "aws_cloudwatch_event_target" "raw_to_curate" {
   rule      = aws_cloudwatch_event_rule.raw_object_created.name
   target_id = "curate-lambda"
   arn       = aws_lambda_function.curate.arn
+
+  dead_letter_config {
+    arn = aws_sqs_queue.dlq.arn
+  }
+
+  retry_policy {
+    maximum_event_age_in_seconds = 3600
+    maximum_retry_attempts       = 3
+  }
 
   depends_on = [aws_lambda_permission.allow_s3_curate]
 }

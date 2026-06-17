@@ -7,6 +7,7 @@ import boto3
 import pandas as pd
 
 from common.config import required_env
+from common.obs import log_json
 from common.s3paths import curated_prefix
 
 logger = logging.getLogger(__name__)
@@ -154,6 +155,7 @@ def s3_records(event: dict) -> list[tuple[str, str]]:
 
 
 def lambda_handler(event, context):
+    run_id = getattr(context, "aws_request_id", None)
     target_bucket = required_env("DATA_BUCKET")
 
     all_records = []
@@ -168,4 +170,14 @@ def lambda_handler(event, context):
 
     result = write_curated(df, target_bucket)
     result["touched_prefixes"] = sorted(touched_prefixes)
+    result["run_id"] = run_id
+    log_json(
+        logger,
+        "curate_run",
+        run_id=run_id,
+        raw_features=len(all_records),
+        deduped=int(len(df)),
+        rows_written=result["rows"],
+        partitions=result["partitions"],
+    )
     return result

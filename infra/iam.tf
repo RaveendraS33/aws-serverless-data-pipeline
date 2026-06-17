@@ -59,6 +59,12 @@ data "aws_iam_policy_document" "curate_access" {
     ]
     resources = ["${aws_s3_bucket.data.arn}/curated/*"]
   }
+
+  # Allow the curate Lambda's on-failure async destination to write to the DLQ.
+  statement {
+    actions   = ["sqs:SendMessage"]
+    resources = [aws_sqs_queue.dlq.arn]
+  }
 }
 
 resource "aws_iam_policy" "ingest_access" {

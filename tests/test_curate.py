@@ -2,7 +2,12 @@ from datetime import UTC, datetime
 
 import pandas as pd
 
-from src.curate.handler import deduplicate, feature_to_record, s3_records
+from src.curate.handler import (
+    deduplicate,
+    feature_to_record,
+    records_from_geojson,
+    s3_records,
+)
 
 
 def feature(event_id: str, updated_ms: int, mag: float = 2.5):
@@ -62,3 +67,29 @@ def test_s3_records_supports_eventbridge_s3_event():
     assert s3_records(event) == [
         ("example-bucket", "raw/source=usgs/dt=2026-06-17/file.geojson")
     ]
+
+
+def test_records_from_geojson_handles_empty_feed():
+    assert records_from_geojson({"features": []}) == []
+    assert records_from_geojson({}) == []
+
+
+def test_feature_to_record_handles_malformed_feature():
+    record = feature_to_record({"id": "x", "properties": {}, "geometry": {}})
+
+    assert record["event_id"] == "x"
+    assert record["longitude"] is None
+    assert record["dt"] is None
+
+
+def test_deduplicate_drops_rows_without_id_or_dt():
+    good = feature_to_record(feature("ok", 1781697700000))
+    no_time = feature_to_record({"id": "no-time", "properties": {}, "geometry": {}})
+
+    df = deduplicate([good, no_time])
+
+    assert list(df["event_id"]) == ["ok"]
+
+
+def test_deduplicate_empty_input_returns_empty_frame():
+    assert deduplicate([]).empty

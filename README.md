@@ -17,7 +17,7 @@ The design deliberately avoids the expensive traps:
 
 Additional guardrails:
 
-- AWS Budget alerts at `$5`, `$10`, and `$20`
+- AWS Budget alerts at `$1`, `$5`, and `$10`
 - S3 lifecycle expires `raw/` after 14 days
 - S3 lifecycle expires `athena-results/` after 7 days
 - `terraform destroy` is the one-command cost killer

@@ -59,18 +59,6 @@ data "aws_iam_policy_document" "curate_access" {
     ]
     resources = ["${aws_s3_bucket.data.arn}/curated/*"]
   }
-
-  statement {
-    actions = [
-      "glue:CreateDatabase",
-      "glue:CreateTable",
-      "glue:GetDatabase",
-      "glue:GetTable",
-      "glue:GetTables",
-      "glue:UpdateTable",
-    ]
-    resources = ["*"]
-  }
 }
 
 resource "aws_iam_policy" "ingest_access" {

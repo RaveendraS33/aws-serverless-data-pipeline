@@ -105,7 +105,7 @@ def merge_existing_partitions(wr, df: pd.DataFrame, bucket: str) -> pd.DataFrame
     return df.sort_values(["event_id", "updated_time"]).drop_duplicates("event_id", keep="last")
 
 
-def write_curated(df: pd.DataFrame, bucket: str, database: str, table: str):
+def write_curated(df: pd.DataFrame, bucket: str):
     import awswrangler as wr
 
     if df.empty:
@@ -116,16 +116,16 @@ def write_curated(df: pd.DataFrame, bucket: str, database: str, table: str):
     partitions = sorted(df["dt"].dropna().unique().tolist())
     path = f"s3://{bucket}/curated/earthquakes/"
 
+    # Write Parquet files only. The Glue table (with partition projection) is
+    # owned by Terraform, so Athena resolves partitions from the path template
+    # with no catalog writes here -- no crawler, no Terraform drift.
     wr.s3.to_parquet(
         df=df,
         path=path,
         dataset=True,
         mode="overwrite_partitions",
-        database=database,
-        table=table,
         partition_cols=["dt"],
         compression="snappy",
-        schema_evolution=True,
     )
     logger.info("Wrote %s records to %s partitions: %s", len(df), path, partitions)
     return {"rows": len(df), "partitions": partitions}
@@ -147,8 +147,6 @@ def s3_records(event: dict) -> list[tuple[str, str]]:
 
 def lambda_handler(event, context):
     target_bucket = required_env("DATA_BUCKET")
-    database = required_env("GLUE_DATABASE")
-    table = required_env("GLUE_TABLE")
 
     all_records = []
     touched_prefixes = set()
@@ -160,6 +158,6 @@ def lambda_handler(event, context):
     if not df.empty:
         touched_prefixes = {curated_prefix(dt) for dt in df["dt"].dropna().unique()}
 
-    result = write_curated(df, target_bucket, database, table)
+    result = write_curated(df, target_bucket)
     result["touched_prefixes"] = sorted(touched_prefixes)
     return result

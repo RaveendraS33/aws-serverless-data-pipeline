@@ -40,9 +40,7 @@ resource "aws_lambda_function" "curate" {
 
   environment {
     variables = {
-      DATA_BUCKET   = aws_s3_bucket.data.bucket
-      GLUE_DATABASE = aws_glue_catalog_database.lakehouse.name
-      GLUE_TABLE    = aws_glue_catalog_table.earthquakes.name
+      DATA_BUCKET = aws_s3_bucket.data.bucket
     }
   }
 }

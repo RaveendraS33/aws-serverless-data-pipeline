@@ -8,16 +8,16 @@ resource "aws_glue_catalog_table" "earthquakes" {
   table_type    = "EXTERNAL_TABLE"
 
   parameters = {
-    "classification"                 = "parquet"
-    "projection.enabled"             = "true"
-    "projection.dt.type"             = "date"
-    "projection.dt.range"            = "2024-01-01,NOW"
-    "projection.dt.format"           = "yyyy-MM-dd"
-    "projection.dt.interval"         = "1"
-    "projection.dt.interval.unit"    = "DAYS"
-    "storage.location.template"      = "s3://${aws_s3_bucket.data.bucket}/curated/earthquakes/dt=$${dt}/"
-    "EXTERNAL"                       = "TRUE"
-    "parquet.compression"            = "SNAPPY"
+    "classification"              = "parquet"
+    "projection.enabled"          = "true"
+    "projection.dt.type"          = "date"
+    "projection.dt.range"         = "2024-01-01,NOW"
+    "projection.dt.format"        = "yyyy-MM-dd"
+    "projection.dt.interval"      = "1"
+    "projection.dt.interval.unit" = "DAYS"
+    "storage.location.template"   = "s3://${aws_s3_bucket.data.bucket}/curated/earthquakes/dt=$${dt}/"
+    "EXTERNAL"                    = "TRUE"
+    "parquet.compression"         = "SNAPPY"
   }
 
   partition_keys {

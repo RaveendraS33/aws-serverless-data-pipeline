@@ -45,3 +45,33 @@ resource "aws_scheduler_schedule" "hourly_ingest" {
     role_arn = aws_iam_role.scheduler.arn
   }
 }
+
+resource "aws_cloudwatch_event_rule" "raw_object_created" {
+  name        = "${var.project_name}-raw-object-created"
+  description = "Route new raw USGS S3 objects to the curate Lambda"
+
+  event_pattern = jsonencode({
+    source        = ["aws.s3"]
+    "detail-type" = ["Object Created"]
+    detail = {
+      bucket = {
+        name = [aws_s3_bucket.data.bucket]
+      }
+      object = {
+        key = [
+          {
+            prefix = "raw/source=usgs/"
+          }
+        ]
+      }
+    }
+  })
+}
+
+resource "aws_cloudwatch_event_target" "raw_to_curate" {
+  rule      = aws_cloudwatch_event_rule.raw_object_created.name
+  target_id = "curate-lambda"
+  arn       = aws_lambda_function.curate.arn
+
+  depends_on = [aws_lambda_permission.allow_s3_curate]
+}

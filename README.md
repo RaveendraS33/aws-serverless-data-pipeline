@@ -30,7 +30,8 @@ Additional guardrails:
 flowchart LR
     EB["EventBridge Scheduler hourly"] --> I["Lambda: ingest"]
     I --> R["S3 raw GeoJSON source=usgs/dt/hour"]
-    R --> C["Lambda: curate"]
+    R --> E["S3 Object Created event via EventBridge"]
+    E --> C["Lambda: curate"]
     C --> P["S3 curated Parquet dt"]
     C --> G["Glue Data Catalog projection table"]
     G --> A["Athena workgroup scan cap"]
@@ -160,6 +161,7 @@ streamlit run app.py
 
 - S3 for raw, curated, and Athena results
 - EventBridge Scheduler for hourly ingestion
+- EventBridge rule for S3 raw object-created events
 - Lambda ingest, dependency-free Python stdlib
 - Lambda curate, Python 3.11 plus AWS SDK for pandas managed layer
 - Glue Data Catalog table with partition projection

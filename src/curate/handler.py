@@ -138,6 +138,14 @@ def load_s3_json(bucket: str, key: str) -> dict:
 
 def s3_records(event: dict) -> list[tuple[str, str]]:
     records = []
+
+    if event.get("source") == "aws.s3" and event.get("detail-type") == "Object Created":
+        detail = event.get("detail") or {}
+        bucket = (detail.get("bucket") or {}).get("name")
+        key = (detail.get("object") or {}).get("key")
+        if bucket and key:
+            return [(bucket, unquote_plus(key))]
+
     for record in event.get("Records", []):
         bucket = record["s3"]["bucket"]["name"]
         key = unquote_plus(record["s3"]["object"]["key"])

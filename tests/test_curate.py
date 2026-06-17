@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 
 import pandas as pd
 
-from src.curate.handler import deduplicate, feature_to_record
+from src.curate.handler import deduplicate, feature_to_record, s3_records
 
 
 def feature(event_id: str, updated_ms: int, mag: float = 2.5):
@@ -47,3 +47,18 @@ def test_deduplicate_keeps_latest_updated_time():
     assert df.iloc[0]["updated_time"] == pd.Timestamp(
         datetime.fromtimestamp(1781697800000 / 1000, tz=UTC)
     )
+
+
+def test_s3_records_supports_eventbridge_s3_event():
+    event = {
+        "source": "aws.s3",
+        "detail-type": "Object Created",
+        "detail": {
+            "bucket": {"name": "example-bucket"},
+            "object": {"key": "raw/source%3Dusgs/dt%3D2026-06-17/file.geojson"},
+        },
+    }
+
+    assert s3_records(event) == [
+        ("example-bucket", "raw/source=usgs/dt=2026-06-17/file.geojson")
+    ]
